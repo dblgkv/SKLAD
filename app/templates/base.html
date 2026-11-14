@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Складская система</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 20px; display: flex; flex-direction: column; min-height: 100vh; }
+        .navbar { margin-bottom: 20px; }
+        .table-sm td, .table-sm th { padding: 0.3rem; font-size: 0.9rem; }
+        .footer { margin-top: auto; padding: 20px 0; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light rounded">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Складская система</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/">Главная</a>
+                <a class="nav-link" href="/upload-order">Заказ на склад</a>
+                <a class="nav-link" href="/upload-shipment">Отгрузка со склада</a>
+                <a class="nav-link" href="/stock">Склад</a>
+                <a class="nav-link" href="/logs">Логи</a>
+                <a class="nav-link" href="/settings">Настройки</a>
+            </div>
+        </div>
+    </nav>
+    
+    {% block content %}{% endblock %}
+
+    <div class="footer text-muted">
+        <button onclick="shutdownApp()" class="btn btn-sm btn-outline-danger">Завершить работу</button>
+    </div>
+</div>
+
+<script>
+async function shutdownApp() {
+    if (confirm("Вы уверены, что хотите выключить систему?")) {
+        try {
+            // 1. Отправляем команду на сервер, чтобы он завершил работу
+            await fetch('/api/shutdown', { method: 'POST' });
+            
+            // 2. Пытаемся закрыть окно браузера
+            window.open('', '_self', ''); // Трюк для старых браузеров
+            window.close();                // Трюк для новых браузеров
+            
+            // 3. Если браузер не дал закрыться (что он обычно и делает), показываем инструкцию
+            document.body.innerHTML = `
+                <div class="container mt-5 text-center" style="padding-top: 15vh;">
+                    <h1 class="display-4 text-muted">Сервер остановлен</h1>
+                    <p class="lead mt-3 text-danger"><strong>Пожалуйста, закройте это окно вручную (Alt+F4) и закройте черное окно консоли.</strong></p>
+                    <p class="text-muted mt-4">Браузеры в целях безопасности не позволяют сайтам закрывать окна автоматически.</p>
+                </div>`;
+        } catch (e) {
+            alert("Не удалось связаться с сервером. Возможно, он уже выключен.");
+        }
+    }
+}
+</script>
+</body>
+</html>

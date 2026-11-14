@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{% if doc_type == 'order' %}Заявка на заказ{% else %}Заявка на отгрузку{% endif %}</h2>
+
+<div class="alert alert-info">
+    <strong>Требования к файлам:</strong> Имя файла должно быть в формате
+    <code>Название объекта_Наименование заявки_Гггг.мм.дд.xlsx</code>.<br>
+    Пример: <code>ОП968_Профиль_2026.06.03.xlsx</code>.
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <input type="file" id="fileInput" class="form-control mb-2" multiple accept=".xlsx">
+        <button class="btn btn-primary" onclick="parseFiles()">Проверить файлы</button>
+        <div id="parseResult" class="mt-3"></div>
+    </div>
+</div>
+
+<div id="previewTable" style="display:none;" class="card">
+    <div class="card-header">Предварительный просмотр</div>
+    <div class="card-body">
+        <div style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-sm table-bordered">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th>Файл</th><th>Код</th><th>Наименование</th>
+                        <th>Артикул</th><th>Кол-во</th><th>Ед.</th><th>Примечание</th>
+                    </tr>
+                </thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+        </div>
+        <button class="btn btn-success mt-2" onclick="confirmUpload()">Загрузить в систему</button>
+    </div>
+</div>
+
+<script>
+const docType = "{{ doc_type }}";
+let parsedRows = [];
+
+async function parseFiles() {
+    const input = document.getElementById('fileInput');
+    const resultDiv = document.getElementById('parseResult');
+    const previewTable = document.getElementById('previewTable');
+    const previewBody = document.getElementById('previewBody');
+
+    if (!input.files.length) {
+        resultDiv.innerHTML = '<div class="alert alert-warning">Выберите хотя бы один файл.</div>';
+        return;
+    }
+
+    const formData = new FormData();
+    for (let file of input.files) formData.append('files', file);
+
+    resultDiv.innerHTML = '<div class="alert alert-secondary">Чтение файлов...</div>';
+    previewTable.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/parse-files', { method: 'POST', body: formData });
+        const data = await response.json();
+
+        let html = '<ul class="list-group mb-3">';
+        data.files.forEach(f => {
+            if (f.status === 'success') {
+                html += `<li class="list-group-item list-group-item-success">
+                    ✅ <strong>${f.filename}</strong> — обработано: ${f.rows.length}</li>`;
+            } else if (f.status === 'warning') {
+                html += `<li class="list-group-item list-group-item-warning">
+                    ⚠️ <strong>${f.filename}</strong> — ${f.error} (обработано: ${f.rows.length})</li>`;
+            } else {
+                html += `<li class="list-group-item list-group-item-danger">
+                    ❌ <strong>${f.filename}</strong> — ${f.error}</li>`;
+            }
+        });
+        html += '</ul>';
+        resultDiv.innerHTML = html;
+
+        if (data.all_rows && data.all_rows.length > 0) {
+            parsedRows = data.all_rows;
+            previewBody.innerHTML = '';
+            data.all_rows.forEach(r => {
+                previewBody.innerHTML += `<tr>
+                    <td>${r.source_file}</td><td>${r.code}</td><td>${r.name}</td>
+                    <td>${r.article}</td><td>${r.quantity}</td><td>${r.unit}</td>
+                    <td>${r.note}</td></tr>`;
+            });
+            previewTable.style.display = 'block';
+        }
+    } catch (e) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Сбой: ${e.message}</div>`;
+    }
+}
+
+async function confirmUpload() {
+    if (!parsedRows.length) return;
+    const resultDiv = document.getElementById('parseResult');
+    resultDiv.innerHTML = '<div class="alert alert-info">Сохранение...</div>';
+
+    const filesMap = {};
+    parsedRows.forEach(row => {
+        if (!filesMap[row.source_file]) {
+            filesMap[row.source_file] = {
+                filename: row.source_file,
+                doc_date: row.doc_date || "",
+                rows: []
+            };
+        }
+        filesMap[row.source_file].rows.push(row);
+    });
+
+    const filesArray = Object.values(filesMap);
+
+    try {
+        const response = await fetch('/api/confirm-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_type: docType, files: filesArray })
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+            resultDiv.innerHTML = `<div class="alert alert-success">
+                ✅ Успешно сохранено! Создано документов: <strong>${data.docs_created}</strong>.
+                <a href="/logs">Перейти в логи</a></div>`;
+            document.getElementById('previewTable').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            parsedRows = [];
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">❌ ${data.detail || 'Ошибка сервера'}</div>`;
+        }
+    } catch (e) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Сбой сети: ${e.message}</div>`;
+    }
+}
+</script>
+{% endblock %}

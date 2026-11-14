@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Настройки системы</h2>
+
+{% if msg %}
+<div class="alert alert-success">{{ msg }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">Путь к базе данных</div>
+    <div class="card-body">
+        <form id="settingsForm" method="POST" action="/settings">
+            <div class="mb-3">
+                <label class="form-label">Папка для хранения файла базы данных:</label>
+                <input type="text" name="db_folder" class="form-control" value="{{ current_folder }}" required>
+                <div class="form-text">
+                    Например: <code>C:\Users\User\Documents\SKLAD_Data</code> или <code>D:\Склады</code>.
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label fw-bold">Что делать с существующими данными при смене папки?</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="action" id="actionCopy" value="copy" checked>
+                    <label class="form-check-label" for="actionCopy">
+                        <strong>Скопировать текущую базу</strong> в новую папку (все данные сохранятся)
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="action" id="actionNew" value="new">
+                    <label class="form-check-label" for="actionNew">
+                        <strong>Создать пустую базу</strong> (старая база останется в предыдущей папке)
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Сохранить настройки</button>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('settingsForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = "Подключение...";
+    
+    // 1. Сохраняем настройки
+    await fetch('/settings', {
+        method: 'POST',
+        body: formData,
+        redirect: 'manual'
+    });
+    
+    // 2. Просим сервер переподключиться к новой базе (на лету)
+    const res = await fetch('/api/reload', { method: 'POST' });
+    
+    if (res.ok) {
+        window.location.href = '/settings?msg=Настройки успешно применены! База данных переподключена.';
+    } else {
+        alert("Произошла ошибка при переподключении к базе данных. Проверьте путь.");
+        btn.disabled = false;
+        btn.textContent = "Сохранить настройки";
+    }
+};
+</script>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Журнал операций</h2>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover m-0">
+            <thead class="table-dark">
+                <tr><th>Дата и время</th><th>Тип</th><th>Файл</th><th>Строк</th><th>Автор</th><th></th></tr>
+            </thead>
+            <tbody id="logsBody">
+                <tr><td colspan="6" class="text-center">Загрузка...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+async function loadLogs() {
+    const response = await fetch('/api/logs');
+    const data = await response.json();
+    const tbody = document.getElementById('logsBody');
+    if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Нет операций</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(d => `
+        <tr>
+            <td>${d.datetime}</td>
+            <td><span class="badge ${d.doc_type === 'order' ? 'bg-success' : 'bg-warning text-dark'}">
+                ${d.doc_type === 'order' ? 'Заказ' : 'Отгрузка'}</span></td>
+            <td>${d.source_file}</td>
+            <td>${d.items}</td>
+            <td>${d.author || ''}</td>
+            <td><a href="/api/export/document/${d.id}" class="btn btn-sm btn-outline-primary">Скачать</a></td>
+        </tr>`).join('');
+}
+loadLogs();
+</script>
+{% endblock %}
